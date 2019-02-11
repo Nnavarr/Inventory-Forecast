@@ -1,0 +1,79 @@
+---
+title: "Inventory Forecast"
+author: "Noe Navarro"
+date: "February 11, 2019"
+output: html_document
+---
+
+
+```{r Library}
+
+library('dplyr')
+library('forecast', lib.loc="~/R/win-library/3.4")
+library('ggvis')
+library('ggplot2')
+
+```
+
+
+#** Initial Data **
+
+```{r}
+
+# Import Data ----
+hitch_sales <- read.csv("\\\\adfs01.uhi.amerco\\departments\\mia\\group\\MIA\\Noe\\Projects\\Hitch Inventory\\Data\\hitch_sales.csv")
+hitch_units <- read.csv("\\\\adfs01.uhi.amerco\\departments\\mia\\group\\MIA\\Noe\\Projects\\Hitch Inventory\\Data\\hitch_units.csv")
+
+# Rename columns ----
+colnames(hitch_sales)[1] <- 'Part_Number'
+colnames(hitch_units)[1] <- 'Part_Number'
+
+# Convert "Date" column to Date values ----
+hitch_sales$Date <- as.character(hitch_sales$Date)
+hitch_sales$Date <- as.Date(hitch_sales$Date, format="%Y-%m-%d")
+hitch_units$Date <- as.character(hitch_units$Date)
+hitch_units$Date <- as.Date(hitch_units$Date, format="%Y-%m-%d")
+
+# Convert Part_Number column to character (not factor) ----
+hitch_sales$Part_Number <- as.character(hitch_sales$Part_Number)
+hitch_units$Part_Number <- as.character(hitch_units$Part_Number)
+
+head(hitch_sales)
+head(hitch_units)
+
+```
+
+
+# **Visual Inspection of Time Series**
+
+```{r Revenue}
+
+# Plot time series (Sales) ----
+hitch_sales %>%
+  group_by(Part_Number) %>%
+  ggvis(x = ~Date, y = ~Revenue)
+
+# Distinct Part Numbers present within the dataframe ----
+hitch_sales %>%
+  summarize(n_distinct(Part_Number))
+
+# From the code above, we can see there are approximately 54 unique part numbers within our database. The assumption is that we will need to produce a forecast for each individual part number. 
+
+```
+
+
+```{r Units}
+
+hitch_units %>%
+  group_by(Part_Number) %>%
+  ggvis(x = ~Date, y = ~Units)
+
+hitch_units %>%
+  arrange(desc(Units))
+
+# Largest Unit Count Part Number = 74507
+
+```
+
+
+
