@@ -57,6 +57,28 @@ hitch_sales = pd.merge(left=f16_hitch_sales, right=f17_hitch_sales, on='Part '
 hitch_sales = pd.merge(left=hitch_sales, right=f18_hitch_sales, on='Part '
                                                                    'Number')
 hitch_sales = pd.merge(left=hitch_sales, right=f19_hitch_sales, on='Part '
-                                                                   'Number')
+                                            'Number')
 
+# Remove missing data (March 2019) ----
+hitch_units.drop(hitch_units.columns[48], axis=1, inplace=True)
+hitch_sales.drop(hitch_sales.columns[48], axis=1, inplace=True)
+
+# Melt Dataframes into a work friendly version ----
+melted_hitch_sales = hitch_sales.melt(id_vars= 'Part Number',
+                                      var_name='Date', value_name='Revenue')
+melted_hitch_units = hitch_units.melt(id_vars= 'Part Number',
+                                      var_name='Date', value_name='Units')
+
+# Remove Timestamp from Date column ----
+melted_hitch_sales['Date'] = pd.to_datetime(melted_hitch_sales[
+                                                'Date']).dt.date
+melted_hitch_units['Date'] = pd.to_datetime(melted_hitch_units[
+                                                'Date']).dt.date
+
+# Export Data to CSV ----
+melted_hitch_sales.to_csv('Z:/group/MIA/Noe/Projects/Hitch '
+                          'Inventory/Data/hitch_sales.csv', index=False)
+
+melted_hitch_units.to_csv('Z:/group/MIA/Noe/Projects/Hitch '
+                          'Inventory/Data/hitch_units.csv', index=False)
 
