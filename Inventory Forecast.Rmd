@@ -12,8 +12,12 @@ library('dplyr')
 library('forecast', lib.loc="~/R/win-library/3.4")
 library('ggvis')
 library('ggplot2')
+library('xts')
+library('broom')
+library('stats')
 
 ```
+
 
 
 #** Initial Data **
@@ -21,59 +25,261 @@ library('ggplot2')
 ```{r}
 
 # Import Data ----
-hitch_sales <- read.csv("\\\\adfs01.uhi.amerco\\departments\\mia\\group\\MIA\\Noe\\Projects\\Hitch Inventory\\Data\\hitch_sales.csv")
 hitch_units <- read.csv("\\\\adfs01.uhi.amerco\\departments\\mia\\group\\MIA\\Noe\\Projects\\Hitch Inventory\\Data\\hitch_units.csv")
 
 # Rename columns ----
-colnames(hitch_sales)[1] <- 'Part_Number'
 colnames(hitch_units)[1] <- 'Part_Number'
 
 # Convert "Date" column to Date values ----
-hitch_sales$Date <- as.character(hitch_sales$Date)
-hitch_sales$Date <- as.Date(hitch_sales$Date, format="%Y-%m-%d")
 hitch_units$Date <- as.character(hitch_units$Date)
-hitch_units$Date <- as.Date(hitch_units$Date, format="%Y-%m-%d")
+hitch_units$Date <- as.Date(hitch_units$Date, format = '%m/%d/%Y')
 
 # Convert Part_Number column to character (not factor) ----
-hitch_sales$Part_Number <- as.character(hitch_sales$Part_Number)
 hitch_units$Part_Number <- as.character(hitch_units$Part_Number)
 
-head(hitch_sales)
-head(hitch_units)
+```
+
+
+```{r Isolate selected part number}
+
+# Filter 74507 ----
+part_74507_units <- 
+  hitch_units %>%
+  filter(Part_Number == '74507')
+
+# XTS conversion ----
+part_74507_units_xts <- as.xts(part_74507_units$Units, order.by = part_74507_units$Date)
 
 ```
 
 
-# **Visual Inspection of Time Series**
+# Prior to this step, the shiny app will need to import a csv file contianing inventory unit counts. There may be room to import a single file at once where the user can filter based on part number. 
 
-```{r Revenue}
 
-# Plot time series (Sales) ----
-hitch_sales %>%
-  group_by(Part_Number) %>%
-  ggvis(x = ~Date, y = ~Revenue)
+```{r Import Regression Format Data}
 
-# Distinct Part Numbers present within the dataframe ----
-hitch_sales %>%
-  summarize(n_distinct(Part_Number))
-
-# From the code above, we can see there are approximately 54 unique part numbers within our database. The assumption is that we will need to produce a forecast for each individual part number. 
+# Create regression model dataframe with categorical monthly variables ----
+categorical_var <- function(x){
+  
+  require('dplyr')
+  require('lazyeval')
+  require('purrr')
+  
+  # Create trend and month columns ----
+  x$Trend = ""
+  x$Feb = ""
+  x$Mar = ""
+  x$Apr = ""
+  x$May = ""
+  x$Jun = ""
+  x$Jul = ""
+  x$Aug = ""
+  x$Sep = ""
+  x$Oct = ""
+  x$Nov = ""
+  x$Dec = ""
+  
+  # Create Trend column sequence ----
+  x$Trend = seq_along(x$Date)
+  
+  
+  for(i in seq_along(x$Date)){
+    
+    if(months(x$Date)[i] == 'February'){
+      
+      x$Feb[i] = 1
+      
+    } else if(months(x$Date)[i] == 'March'){
+      
+      x$Mar[i] = 1
+      
+    } else if(months(x$Date)[i] == 'April'){
+      
+      x$Apr[i] = 1
+      
+    } else if(months(x$Date)[i] == 'May'){
+      
+      x$May[i] = 1
+      
+    } else if(months(x$Date)[i] == 'June'){
+      
+      x$Jun[i] = 1
+      
+    } else if(months(x$Date)[i] == 'July'){
+      
+      x$Jul[i] = 1
+      
+    } else if(months(x$Date)[i] == 'August'){
+      
+      x$Aug[i] = 1
+      
+    } else if(months(x$Date)[i] == 'September'){
+      
+      x$Sep[i] = 1
+      
+    } else if(months(x$Date)[i] == 'October'){
+      
+      x$Oct[i] = 1
+      
+    } else if(months(x$Date)[i] == 'November'){
+      
+      x$Nov[i] = 1
+      
+    } else if(months(x$Date)[i] == 'December'){
+      
+      x$Dec[i] = 1
+      
+    } 
+  }
+  
+  # Replace blank value with 0 ----
+  x$Feb[x$Feb == ""] <- 0
+  x$Mar[x$Mar == ""] <- 0
+  x$Apr[x$Apr == ""] <- 0
+  x$May[x$May == ""] <- 0
+  x$Jun[x$Jun == ""] <- 0
+  x$Jul[x$Jul == ""] <- 0
+  x$Aug[x$Aug == ""] <- 0
+  x$Sep[x$Sep == ""] <- 0
+  x$Oct[x$Oct == ""] <- 0
+  x$Nov[x$Nov == ""] <- 0
+  x$Dec[x$Dec == ""] <- 0
+  
+  # Convert columns to numeric ----
+  x$Feb <- as.numeric(x$Feb)
+  x$Mar <- as.numeric(x$Mar)
+  x$Apr <- as.numeric(x$Apr)
+  x$May <- as.numeric(x$May)
+  x$Jun <- as.numeric(x$Jun)
+  x$Jul <- as.numeric(x$Jul)
+  x$Aug <- as.numeric(x$Aug)
+  x$Sep <- as.numeric(x$Sep)
+  x$Oct <- as.numeric(x$Oct)
+  x$Nov <- as.numeric(x$Nov)
+  x$Dec <- as.numeric(x$Dec)
+                      
+   return(x)
+  
+}
+  
 
 ```
 
 
-```{r Units}
+```{r}
 
-hitch_units %>%
-  group_by(Part_Number) %>%
+months(part_74507_units$Date)[1] == 'April'
+
+test_function <- 
+  categorical_var(part_74507_units)
+
+
+
+```
+
+
+```{r Graph Unit Count Time Series}
+
+# Graph time series ----
+test_function %>% 
   ggvis(x = ~Date, y = ~Units)
 
-hitch_units %>%
-  arrange(desc(Units))
+  # 
 
-# Largest Unit Count Part Number = 74507
+?plotly
 
 ```
+
+
+```{r Build Regression Model}
+
+# initial model ----
+reg_model <-
+  lm(Units ~ Trend + Feb + Mar + Apr + May + Jun + Jul + Aug + Sep + Oct + Nov + Dec, data = test_function)
+
+# Model Summary ----
+model_summary <-
+  summary(reg_model)
+
+augment_model <-
+  augment(reg_model)
+
+glance_model <- 
+  glance(reg_model)
+
+
+```
+
+
+```{r Critical T Value @ 95% condifence}
+
+# Critical T Values (used for confidence intervals and Coefficient test; two tailed) ----
+round(abs(qt(.05/2, 11)),3)
+
+# Critical F value (one tailed Test) ----
+# k = 12 (x variables)
+# n-k-1 = 33
+qf(.95,  df1 = 12, df2 = glance_model$df.residual)
+
+
+```
+
+
+```{r Multicolinearity Test}
+
+# In this section, we will check the F-Test and whether it shows significance vs all independent variables. Here, we would like to check whether there is a conflict between the F test and individual coefficient significance. The F-test tells us at least one independent variable explains a large portion of Y's variation. If no x variables are significant while F is, multicolinearity is present. 
+
+# Extract Individual X variable P values ----
+coefficient_pval <- model_summary$coefficients[,4]
+significance_x_var <- coefficient_pval < .05
+significance_x_var_boolean <- sum(significance_x_var) > 0
+
+# Manual check of computed T statitic / P value ----
+model_summary$coefficients
+st_error <- model_summary$coefficients[, 2]
+coeffi <- model_summary$coefficients[, 1]
+t_stat <- coeffi / st_error # The manual calculation of T values is the same as regression summary output ----
+
+model_summary$fstatistic
+f_crit <- qf(.95, df1 = model_summary$fstatistic[2], model_summary$fstatistic[3])
+
+# ANOVA Table Check (Manual) ----
+anova_table <- anova(reg_model)
+msr <- (sum(anova_table$`Mean Sq`[1:12]) / model_summary$fstatistic[2])
+mse <- anova_table$`Mean Sq`[13]
+f_stat_manual <- msr / mse
+# The manual anova check reveals the F statistic from the model_summary is correct; We can move ahead with this value. 
+significant_f_boolean <- model_summary$fstatistic[1] > f_crit
+
+
+# Multicolinearity check ----
+multicolinearity_conflict <- significance_x_var_boolean != significant_f
+
+
+# Multicolinearity Results ----
+multicolinearity_results <-
+  if(multicolinearity_conflict == FALSE){
+    
+    print("Multicolinearity: Not Detected")
+    
+  } else {
+    
+    print("Multicolinearity: Detected")
+    
+  }
+
+```
+
+
+```{r Heteroskedasticity Test}
+
+
+
+
+
+
+```
+
 
 
 
