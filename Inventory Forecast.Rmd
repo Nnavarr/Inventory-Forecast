@@ -15,6 +15,7 @@ library('ggplot2')
 library('xts')
 library('broom')
 library('stats')
+library('lmtest')
 
 ```
 
@@ -273,10 +274,43 @@ multicolinearity_results <-
 
 ```{r Heteroskedasticity Test}
 
+# Breush Pagan Test ----
+bptest(reg_model, studentize = TRUE) # Null hypothesis = no heteroskedascticity present. 
 
 
+# Manual BP Test ----
+resid_lm <- 
+  lm((.resid^2) ~ Trend + Feb + Mar + Apr + May + Jun + Jul + Aug + Sep + Oct + Nov + Dec, data = augment_model)
+
+resid_model_summary <- summary(resid_lm)
+
+augment_model %>%
+  ggvis(x = ~.fitted, y = ~.resid)
+
+# Manual BP Calc ----
+bp_val <- resid_model_summary$r.squared * 12
+
+# Critical Chi Square 95% confidence @ 12 DF ----
+chi_critical = 21.026
 
 
+# Check against calculated BP value ----
+bp_val > chi_critical
+
+heteroskedasticity_results <- 
+  if(bp_val > chi_critical){
+  
+    print("Heteroskedasticity: Detected")
+  
+  } else {
+  
+    print("Heteroskedasticity: Not Detected")
+  
+  }
+
+print(heteroskedasticity_results)
+
+#TODO compile manual BP test, the studentized from the package is performing a scaling not fully understood. 
 
 ```
 
