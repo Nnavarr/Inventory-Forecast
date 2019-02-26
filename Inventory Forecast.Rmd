@@ -16,6 +16,7 @@ library('xts')
 library('broom')
 library('stats')
 library('lmtest')
+library('DT')
 
 ```
 
@@ -38,20 +39,13 @@ hitch_units$Date <- as.Date(hitch_units$Date, format = '%m/%d/%Y')
 # Convert Part_Number column to character (not factor) ----
 hitch_units$Part_Number <- as.character(hitch_units$Part_Number)
 
-```
-
-
-```{r Isolate selected part number}
-
-# Filter 74507 ----
-part_74507_units <- 
+# Order by part number ASC ----
+hitch_units <-
   hitch_units %>%
-  filter(Part_Number == '74507')
-
-# XTS conversion ----
-part_74507_units_xts <- as.xts(part_74507_units$Units, order.by = part_74507_units$Date)
+  arrange(`Part_Number`)
 
 ```
+
 
 
 # Prior to this step, the shiny app will need to import a csv file contianing inventory unit counts. There may be room to import a single file at once where the user can filter based on part number. 
@@ -60,7 +54,7 @@ part_74507_units_xts <- as.xts(part_74507_units$Units, order.by = part_74507_uni
 ```{r Import Regression Format Data}
 
 # Create regression model dataframe with categorical monthly variables ----
-categorical_var <- function(x){
+format_data <- function(x){
   
   require('dplyr')
   require('lazyeval')
@@ -81,7 +75,10 @@ categorical_var <- function(x){
   x$Dec = ""
   
   # Create Trend column sequence ----
-  x$Trend = seq_along(x$Date)
+  x <- 
+    x %>%
+    group_by(Part_Number) %>%
+    mutate(Trend = seq_along(Part_Number))
   
   
   for(i in seq_along(x$Date)){
@@ -167,17 +164,237 @@ categorical_var <- function(x){
 ```
 
 
-```{r}
+# Part Number Selection (via Shiny App) ----
 
-months(part_74507_units$Date)[1] == 'April'
+Here, the dataframe created from the function above will be filtered based on user input. We can then proceed to build the regression model and return any metrics we may need. 
 
-test_function <- 
-  categorical_var(part_74507_units)
+Within the following R-Script, we will assume a selection has already been made. Here, we will manually set the selection to part number: 13002
 
+```{r Manual Selection of Part number 74507}
 
+p_13002_test <- 
+test_function %>%
+  filter(`Part_Number` == '74507')
 
 ```
 
+
+```{r Pre Model Specifications}
+
+observations <-
+  round(max(p_13002_test$Trend),0)
+
+years_data <- round(observations/12,2)
+
+pre_model_summary <- data.table(as.tbl(data.frame(observations, years_data)))
+colnames(pre_model_summary)[1] <- 'Count'
+rownames(pre_model_summary) <- c('Observations', 'Yrs Data')
+
+print(pre_model_summary)
+
+```
+
+
+At this point, the user has an understanding of how much data is available. We can then prompt the user to determine the test / training split. 
+
+** SHINY ** : Ask the user to exclude X observations (12 months by default)
+
+
+```{r Manual exclusion of 12 obs}
+
+p_13002_test
+
+head(p_13002_test)
+
+# Test Subset ----
+training_df <- subset(p_13002_test, Trend <= max(Trend) - 12) # Here, the 12 would be the user entered excluded observations ----
+
+```
+
+After the subset, the model can be run on the newly created 'training_df' 
+
+```{r LM Creation}
+
+# Training Model Creation ----
+training_model <- lm(Units ~
+                       Trend 
+                     + Feb
+                     + Mar
+                     + Apr 
+                     + May
+                     + Jun
+                     + Jul
+                     + Aug
+                     + Sep 
+                     + Oct
+                     + Nov 
+                     + Dec,
+                     data = training_df)
+
+# Training Model Summary ----
+t_model_summary <- summary(training_model)
+
+# Establish Crititcal T and F values based on model Degrees of Freedom ----
+
+# Critial T = Two Trailed, N-K-1 Degrees of Freedom & Critical F = one tailed test ----
+n_k_1 <- training_model$df.residual
+k = 12
+
+critical_t <- round(abs(qt(.05/2, n_k_1)),3)
+critical_f <- qf(.95,  df1 = k, df2 = n_k_1)
+
+```
+
+
+```{r Regression Function}
+
+regression_metrics_training <- function(x){
+  
+  # The x variable represents the subset of part number DF. This will test our regression model prior to implementation. If out-of-sample accuracy is deemed acceptable, we can proceed with a full data set model.
+  
+  require('dplyr')
+  require('lazyeval')
+  require('purrr')
+  
+  # Create the LM (OLS regression) ----
+  model = lm(Units ~
+               Trend 
+             + Feb
+             + Mar
+             + Apr 
+             + May
+             + Jun
+             + Jul
+             + Aug
+             + Sep 
+             + Oct
+             + Nov 
+             + Dec,
+             data = x)
+  
+  t_model_summary <- summary(training_model)
+
+  
+  # Establish Crititcal T and F values based on model Degrees of Freedom ----
+  # Critial T = Two Trailed, N-K-1 Degrees of Freedom & Critical F = one tailed test ----
+  n_k_1 <- training_model$df.residual
+  k = t_model_summary$fstatistic[2]
+
+  critical_t <- round(abs(stats::qt(.05/2, n_k_1)),3)
+  critical_f <- stats::qf(.95,  df1 = k, df2 = n_k_1)
+  critical_chi <- stats::qchisq(.95, df = k)
+
+  # -----------------------------------------------
+  # Model Calibration Test 1: Multicolinearity ----
+  # -----------------------------------------------
+  
+  # Independent X variable significance ----
+  coefficient_pval <- t_model_summary$coefficients[,4]
+  significance_x_var <- coefficient_pval < .05
+  significance_x_var_boolean <- sum(significance_x_var) > 0
+    
+    # In the code above, if one X (independent) variable is significant, it will return TRUE.
+  
+  # F-test (all X variables combined; H0: All beta coefficients = 0 ; Ha: At least one beta coefficient != 0)
+  significant_f_boolean <- t_model_summary$fstatistic[1] > critical_f
+  
+  # Multicolinearity conclusion ----
+  multicolinearity_conflict <- significance_x_var_boolean != significant_f_boolean
+  
+  multicolinearity_results <-
+    
+    if(multicolinearity_conflict == FALSE){
+    
+      print("Not Detected")
+    
+    } else {
+    
+      print("Detected")
+    
+    }
+  
+  # -------------------------------------------------
+  # Model Calibration Test 2: Heteroskedasticity ----
+  # -------------------------------------------------
+  
+  augmented_model <- broom::augment(model)
+  
+  # Breusch-Pagan Test: Regress X variables on squared residuals from first regression ----
+  resid_model = lm(.resid^2 ~
+                     Trend 
+                   + Feb
+                   + Mar
+                   + Apr 
+                   + May
+                   + Jun
+                   + Jul
+                   + Aug
+                   + Sep 
+                   + Oct
+                   + Nov 
+                   + Dec,
+                   data = augmented_model)
+  
+  # Residual model summary ----
+  resid_model_summary <- summary(resid_model)
+  
+  # Breusch-Pagan value: R-squared from residual regression * N (one tailed; only an issue if too big) ----
+  bp_val <- resid_model_summary$r.squared * max(augment_model$Trend) 
+
+  heteroskedasticity_results <- 
+    
+    if(bp_val > critical_chi){
+  
+      print("Detected")
+  
+    } else {
+  
+      print("Not Detected")
+  
+    }
+
+  # ----------------------------------------------
+  # Model Calibration Test 3: Autocorrelation ----
+  # ----------------------------------------------
+  
+  durbin_value <- lmtest::dwtest(reg_model)
+  durbin_watson_pvalue <- durbin_value$p.value
+  autocorrelation_results <-
+  
+    if(durbin_watson_pvalue < .05){
+    
+      print("Detected")
+    
+    } else {
+    
+      print("Not Detected")
+    
+    }
+  
+  
+  # Model Summary ----
+
+  
+  
+  
+  
+}
+
+
+
+# TODO: Find a way to extract the number of observations for each part numner **UPON SELECTION** of a dropdown list 
+# Once this process is created, we can prompt the user for input on training vs test set splits (typically 80/20)
+# After, we can compile error metrics for out-of-sample data. 
+
+```
+
+
+```{r Test initial function Working 2-26-2019}
+
+test_function <- 
+  format_data(hitch_units)
+
+```
 
 ```{r Graph Unit Count Time Series}
 
@@ -185,12 +402,7 @@ test_function <-
 test_function %>% 
   ggvis(x = ~Date, y = ~Units)
 
-  # 
-
-?plotly
-
 ```
-
 
 ```{r Build Regression Model}
 
@@ -211,11 +423,10 @@ glance_model <-
 
 ```
 
-
 ```{r Critical T Value @ 95% condifence}
 
 # Critical T Values (used for confidence intervals and Coefficient test; two tailed) ----
-round(abs(qt(.05/2, 11)),3)
+round(abs(qt(.05/2, 10)),3)
 
 # Critical F value (one tailed Test) ----
 # k = 12 (x variables)
@@ -224,7 +435,6 @@ qf(.95,  df1 = 12, df2 = glance_model$df.residual)
 
 
 ```
-
 
 ```{r Multicolinearity Test}
 
@@ -261,16 +471,15 @@ multicolinearity_conflict <- significance_x_var_boolean != significant_f
 multicolinearity_results <-
   if(multicolinearity_conflict == FALSE){
     
-    print("Multicolinearity: Not Detected")
+    print("Not Detected")
     
   } else {
     
-    print("Multicolinearity: Detected")
+    print("Detected")
     
   }
 
 ```
-
 
 ```{r Heteroskedasticity Test}
 
@@ -293,6 +502,8 @@ bp_val <- resid_model_summary$r.squared * 12
 # Critical Chi Square 95% confidence @ 12 DF ----
 chi_critical = 21.026
 
+qchisq(.95, df = 12)
+
 
 # Check against calculated BP value ----
 bp_val > chi_critical
@@ -300,19 +511,81 @@ bp_val > chi_critical
 heteroskedasticity_results <- 
   if(bp_val > chi_critical){
   
-    print("Heteroskedasticity: Detected")
+    print("Detected")
   
   } else {
   
-    print("Heteroskedasticity: Not Detected")
+    print("Not Detected")
   
   }
 
 print(heteroskedasticity_results)
 
-#TODO compile manual BP test, the studentized from the package is performing a scaling not fully understood. 
+```
+
+```{r Autocorrelation: Durbin-Watson Test}
+
+durbin_value <- lmtest::dwtest(reg_model)
+
+durbin_watson_pvalue <- durbin_value$p.value
+
+autocorrelation_results <-
+  if(durbin_watson_pvalue < .05){
+    
+    print("Detected")
+    
+  } else {
+    
+    print("Not Detected")
+    
+  }
+
 
 ```
+
+```{r Model Summary Table}
+
+# Multicolinearity
+# Heteroskedasticity
+# Autocorrelation 
+
+Test <- c('Multicolinearity', 'Heteroskedasticity', 'Autocorrelation')
+Result <- c(multicolinearity_results, heteroskedasticity_results, autocorrelation_results)
+
+# Table compilation ----
+model_calibration_results <- data.table(as.tbl(data.frame(Test, Result)))
+DT::datatable(model_calibration_results)
+
+
+print(model_calibration_results)
+
+
+```
+
+
+```{r Forecast Summary Table}
+
+
+
+
+
+
+```
+
+
+
+
+
+
+```{r Graph Output}
+
+
+
+
+
+```
+
+
 
 
 
