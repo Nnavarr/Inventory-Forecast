@@ -248,7 +248,7 @@ critical_f <- qf(.95,  df1 = k, df2 = n_k_1)
 
 ```{r Regression Function}
 
-regression_metrics_training <- function(x){
+regression_metrics <- function(x){
   
   # The x variable represents the subset of part number DF. This will test our regression model prior to implementation. If out-of-sample accuracy is deemed acceptable, we can proceed with a full data set model.
   
@@ -305,11 +305,11 @@ regression_metrics_training <- function(x){
     
     if(multicolinearity_conflict == FALSE){
     
-      print("Not Detected")
+      multicolinearity_results = 'Not Detected'
     
     } else {
     
-      print("Detected")
+      multicolinearity_results = 'Detected'
     
     }
   
@@ -345,11 +345,11 @@ regression_metrics_training <- function(x){
     
     if(bp_val > critical_chi){
   
-      print("Detected")
+      heteroskedasticity_results = 'Detected'
   
     } else {
   
-      print("Not Detected")
+      heteroskedasticity_results = 'Not Detected'
   
     }
 
@@ -363,36 +363,51 @@ regression_metrics_training <- function(x){
   
     if(durbin_watson_pvalue < .05){
     
-      print("Detected")
+      autocorrelation_results = 'Detected'
     
     } else {
     
-      print("Not Detected")
+      autocorrelation_results = 'Not Detected'
     
     }
   
   
-  # Model Summary ----
+  # Model Calibration Table ----
+  Test <- c('Multicolinearity', 'Heteroskedasticity', 'Autocorrelation')
+  Result <- c(multicolinearity_results, heteroskedasticity_results, autocorrelation_results)
+
+  # Table compilation ----
+  model_calibration_results <- data.frame(data.frame(Result))
+  rownames(model_calibration_results) <- Test
+  calibration_table <- DT::datatable(model_calibration_results)
 
   
+  # Export Function Variables ----
+  function_variables <- 
+    list("Model" = model,
+         "Model_Summary" = t_model_summary,
+         "Augmented_Model" = augmented_model,
+         "Calibration_Table" = calibration_table)
   
-  
-  
+  return(function_variables)
+
 }
 
-
-
-# TODO: Find a way to extract the number of observations for each part numner **UPON SELECTION** of a dropdown list 
-# Once this process is created, we can prompt the user for input on training vs test set splits (typically 80/20)
-# After, we can compile error metrics for out-of-sample data. 
 
 ```
 
 
 ```{r Test initial function Working 2-26-2019}
 
+
+# Function 1: Format Data ----
 test_function <- 
   format_data(hitch_units)
+
+# Function 2: Regression Model ----
+regression_list <- 
+  regression_metrics(test_function)
+
 
 ```
 
@@ -553,40 +568,19 @@ Test <- c('Multicolinearity', 'Heteroskedasticity', 'Autocorrelation')
 Result <- c(multicolinearity_results, heteroskedasticity_results, autocorrelation_results)
 
 # Table compilation ----
-model_calibration_results <- data.table(as.tbl(data.frame(Test, Result)))
+model_calibration_results <- data.frame(data.frame(Result))
+rownames(model_calibration_results) <- Test
+
 DT::datatable(model_calibration_results)
 
-
-print(model_calibration_results)
-
-
 ```
 
 
-```{r Forecast Summary Table}
+```{r List compilation}
 
-
-
-
-
-
-```
-
-
-
-
-
-
-```{r Graph Output}
-
-
-
+list("test1" = Test,
+     "test2" = Result)
 
 
 ```
-
-
-
-
-
 
