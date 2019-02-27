@@ -17,6 +17,8 @@ library('broom')
 library('stats')
 library('lmtest')
 library('DT')
+library('ggpubr')
+library('DescTools')
 
 ```
 
@@ -318,7 +320,9 @@ regression_metrics <- function(x){
   # -------------------------------------------------
   
   augmented_model <- broom::augment(model)
-  
+  augmented_model$Date <- x$Date
+  augmented_model <- augmented_model[ ,c(21,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20)]
+
   # Breusch-Pagan Test: Regress X variables on squared residuals from first regression ----
   resid_model = lm(.resid^2 ~
                      Trend 
@@ -380,14 +384,60 @@ regression_metrics <- function(x){
   model_calibration_results <- data.frame(data.frame(Result))
   rownames(model_calibration_results) <- Test
   calibration_table <- DT::datatable(model_calibration_results)
+  
+  
+  # Model Forecast Table ----
+  forecast_start_date <- DescTools::AddMonths(max(x$Date),1)
+  forecast_end_date <- DescTools::AddMonths(forecast_start_date, 11)
+  forecast_range <- seq.Date(from = forecast_start_date, to = forecast_end_date, by = 'month')
+  forecast_trend <- seq.int(from = forecast_trend + 1, to = length(forecast_range) + forecast_trend , by = 1)
+  forecast_df <- data.frame("Date" = forecast_range, "Trend" = trend_sequence)
+  
+  # Create Forecast ----
+  model_coefficients <- stats::coef(model)
+  numeric_coefficient_names <- c("Intercept", "Trend", 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
+  names(model_coefficients) <- numeric_coefficient_names
+  forecast_df$Forecast <- as.numeric("")
 
+  # Create linear model and point forecast ----
+  for(i in seq_along(forecast_df$Date)){
+  
+    if(month(forecast_df$Date)[i] == 1){
+    
+      forecast_df$Forecast[i] = round(model_coefficients['Intercept'] 
+                                             + (model_coefficients['Trend']* forecast_df$Trend[i])
+                                             ,0)
+    
+    } else {
+      
+     forecast_df$Forecast[i] = round((model_coefficients['Intercept'] 
+                                           + model_coefficients[paste(month(forecast_df$Date[i]))]) 
+                                           + (model_coefficients['Trend'] * forecast_df$Trend[i])
+                                           ,0)
+    }
+  }
+  
+
+  # Create confidence intervals (95%, upper and lower) ----
+  forecast_df$Upper_Conf <- as.numeric("")
+  forecast_df$Lower_Conf <- as.numeric("")
+  regression_standard_error <- stats::sigma(model)
+  
+  for(i in seq_along(forecast_df$Date)){
+    
+    forecast_df$Upper_Conf[i] = round(forecast_df$Forecast[i] + (critical_t * regression_standard_error),0)
+    forecast_df$Lower_Conf[i] = round(forecast_df$Forecast[i] + (critical_t * regression_standard_error),0)
+    
+  }
+  
   
   # Export Function Variables ----
   function_variables <- 
     list("Model" = model,
          "Model_Summary" = t_model_summary,
          "Augmented_Model" = augmented_model,
-         "Calibration_Table" = calibration_table)
+         "Calibration_Table" = calibration_table,
+         "Forecast" = forecast_df)
   
   return(function_variables)
 
@@ -399,17 +449,83 @@ regression_metrics <- function(x){
 
 ```{r Test initial function Working 2-26-2019}
 
-
 # Function 1: Format Data ----
 test_function <- 
   format_data(hitch_units)
 
+# Select 1 Part number ----
+test_function_filter <- 
+  test_function %>%
+  filter(Part_Number == '74507')
+
 # Function 2: Regression Model ----
 regression_list <- 
-  regression_metrics(test_function)
+  regression_metrics(test_function_filter) 
+
+#
+
+# Graph 
+regression_list$Augmented_Model
+
+ggplot(data = regression_list$Augmented_Model) + geom_line(aes(x=regression_list$Augmented_Model$Date, y = regression_list$Augmented_Model$Units)) + geom_line(data = regression_list$Forecast, aes(x = regression_list$Forecast$Date, y = regression_list$Forecast$Forecast))
+
 
 
 ```
+
+
+
+```{r Function Test Environment}
+
+# TEST ENVIRONMENT FOR FUNCTION ----
+
+# Test Max Date Extraction ----
+forecast_start_date <- DescTools::AddMonths(max(test_function$Date),1)
+forecast_end_date <- DescTools::AddMonths(forecast_start_date, 11)
+forecast_range <- seq.Date(from = forecast_start_date, to = forecast_end_date, by = 'month')
+forecast_trend <- max(test_function$Trend)
+trend_sequence <- seq.int(from = forecast_trend + 1, to = length(forecast_range) + forecast_trend , by = 1)
+
+# Create dataframe of forecasted dates ----
+forecast_df <- data.frame("Date" = forecast_range, "Trend" = trend_sequence)
+
+# Create forecast based on model ----
+model_coefficients <- coef(reg_model)
+numeric_coefficient_names <- c("Intercept", "Trend", 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12)
+names(model_coefficients) <- numeric_coefficient_names
+
+
+# Create Linear Model ----
+forecast_df$forecasted_units <- as.numeric("")
+
+for(i in seq_along(forecast_df$Date)){
+  
+  if(month(forecast_df$Date)[i] == 1){
+    
+    forecast_df$forecasted_units[i] = round(model_coefficients['Intercept'] 
+                                            + (model_coefficients['Trend']* forecast_df$Trend[i])
+                                            ,0)
+    
+  } else {
+      
+    forecast_df$forecasted_units[i] = round((model_coefficients['Intercept'] 
+                                         + model_coefficients[paste(month(forecast_df$Date[i]))]) 
+                                         + (model_coefficients['Trend'] * forecast_df$Trend[i])
+                                         ,0)
+    }
+ 
+}
+ 
+
+# Creation of Confidence Intervals ----
+sigma(reg_model)
+
+
+
+```
+
+
+
 
 ```{r Graph Unit Count Time Series}
 
@@ -575,8 +691,7 @@ DT::datatable(model_calibration_results)
 
 ```
 
-
-```{r List compilation}
+```{r List compilation Test}
 
 list("test1" = Test,
      "test2" = Result)
