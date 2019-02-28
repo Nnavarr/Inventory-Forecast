@@ -421,6 +421,9 @@ regression_metrics <- function(x){
   
 
   # Create confidence intervals (95%, upper and lower) ----
+  forecast_df <- 
+    forecast_df %>% 
+    mutate(Part_Number = x$Part_Number[1])
   forecast_df$Upper_Conf <- as.numeric("")
   forecast_df$Lower_Conf <- as.numeric("")
   regression_standard_error <- stats::sigma(model)
@@ -432,6 +435,7 @@ regression_metrics <- function(x){
     
   }
   
+  forecast_df <- forecast_df[ , c('Part_Number', 'Date', 'Trend', 'Forecast', 'Upper_Conf', 'Lower_Conf')] 
   
   # Export Function Variables ----
   function_variables <- 
@@ -463,8 +467,6 @@ test_function_filter <-
 # Function 2: Regression Model ----
 regression_list <- 
   regression_metrics(test_function_filter) 
-
-#
 
 # Graph 
 regression_list$Augmented_Model
