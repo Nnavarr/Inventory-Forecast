@@ -178,6 +178,8 @@ p_13002_test <-
 test_function %>%
   filter(`Part_Number` == '74507')
 
+unique(test_function$Part_Number)
+
 ```
 
 
