@@ -62,6 +62,22 @@ format_data <- function(x){
   require('lazyeval')
   require('purrr')
   
+  # Format Columns ----
+  colnames(x)[1] <- 'Part_Number'
+  colnames(x)[2] <- 'Date'
+  
+  # Convert "Date" column to Date values ----
+  x$Date <- as.character(x$Date)
+  x$Date <- as.Date(x$Date, format = '%m/%d/%Y')
+  
+  # Convert Part_Number column to character (not factor) ----
+  x$Part_Number <- as.character(x$Part_Number)
+
+  # Order by part number ASC ----
+  x <-
+    x %>%
+    arrange(`Part_Number`)
+  
   # Create trend and month columns ----
   x$Trend = ""
   x$Feb = ""
