@@ -178,7 +178,7 @@ function(x){
   for(i in seq_along(forecast_df$Date)){
     
     forecast_df$Upper_Conf[i] = round(forecast_df$Forecast[i] + (critical_t * regression_standard_error),0)
-    forecast_df$Lower_Conf[i] = round(forecast_df$Forecast[i] + (critical_t * regression_standard_error),0)
+    forecast_df$Lower_Conf[i] = round(forecast_df$Forecast[i] - (critical_t * regression_standard_error),0)
     
   }
   

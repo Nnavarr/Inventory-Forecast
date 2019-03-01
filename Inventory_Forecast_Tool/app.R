@@ -9,6 +9,16 @@ library(markdown)
 library(rjson)
 library(RCurl)
 
+library('forecast', lib.loc="~/R/win-library/3.4")
+library('xts')
+library('broom')
+library('stats')
+library('lmtest')
+library('DT')
+library('ggpubr')
+library('DescTools')
+library('lubridate')
+
 # Custom Functions ----
 format_data <- source('C:\\Users\\1217543\\OneDrive\\Python Projects\\Inventory-Forecast\\Inventory-Forecast\\format_data.R')$value
 regression_metrics <- source('C:\\Users\\1217543\\OneDrive\\Python Projects\\Inventory-Forecast\\Inventory-Forecast\\regression_metrics.R')$value
@@ -37,14 +47,11 @@ sidebar <- dashboardSidebar(
 # App Body: Controls & Output ----
 body <- dashboardBody(
   
-#fixedRow(
-# column(1, selectInput(inputId = "Part", label = "Part Number", choices = 'Test', selected = "13002"))),
-
 fluidPage(
   sidebarLayout(
     sidebarPanel(
       
-      # Filte Upload: 'data'
+      # Filte Upload: 'data' ----
       fileInput('file1', 
                 'Choose CSV file to upload', 
                 accept = c(
@@ -54,29 +61,31 @@ fluidPage(
                   )
                 ),
       
-      # Format Button: 'action1'
+      # Format Button: 'action1' ----
       tags$h5('Data Processing:'),
       actionButton("action1", "Format"),
       
-      
-     # selectInput('part_number', 'Part Number', choices = , selected = 'None'),
+      # Dropdown of part numbers ----
+      uiOutput("part_number"),
      
       # Training Exclusion: 'training'
       numericInput('training', 'Excluded observations (training)', 12),
       
-      # Run model: 'action2'
+      # Run model: 'action2' ----
       tags$h5('Forecast Units:'),
       actionButton('action2', 'Run Model', class = 'btn-primary')
       
     ),
     
+    
+    
     mainPanel(
       tabsetPanel(
         tabPanel("Model: Final",
                   
-                  # Plotly Graph Output ----
-                  plotlyOutput("forecast_graph"),
-                  verbatimTextOutput("Unit Forecast"),
+                 # Plotly Graph Output ----
+                 plotlyOutput("forecast_graph"),
+                 verbatimTextOutput("Unit Forecast"),
                  
                  # Table Output ----
                  dataTableOutput(outputId = 'test'),
@@ -114,9 +123,15 @@ ui <- dashboardPage(header = header,
 
 server <- function(input, output) {
   
+  # ------------------------------------------------------------------------
+  # Data frame containers ----
   values <- reactiveValues(df_data = NULL)
   formatted_df <- reactiveValues(df_data = NULL)
+  filtered_df <- reactiveValues(df_data = NULL)
+  regression_output <- reactiveValuesToList()
+  # -------------------------------------------------------------------------
   
+  # <PROGRESS BAR INPUT> 
   
   # Observe Data upload & Store variable ----
   observeEvent(input$file1, {
@@ -130,17 +145,59 @@ server <- function(input, output) {
         # Save formatted DF as variable ----
         temp_df <- format_data(values$df_data)
         formatted_df$df_data <- temp_df
-        
+    
       })
+  
+  
+  # Part Number drop down ----
+  output$part_number <- renderUI({
+    df <- formatted_df$df_data
+    items <- as.character(df[[1]])
+    
+    selectInput("part_dropdown", "Part Number (Format before selecting):", items)
+    
+  })
+  
+  
+  # Create filtered data frame of single part number ----
+  observeEvent(input$part_dropdown, {
+    
+    # Filter formatted DF ----
+    single_part_number <-
+      if(is.null(formatted_df$df_data)){
+        
+        filtered_df$df_data <- 'None'
+        
+      } else {
+        
+        filtered_df$df_data <- 
+          formatted_df$df_data %>%
+          dplyr::filter(Part_Number == input$part_dropdown)
+      }
+  })
+  
+  
+  # Regression Function process ----
+  observeEvent(input$action2, {
+    
+    regression <- regression_metrics(filtered_df$df_data)
+    regression_output$df_data <- regression 
+    
+    print(str(regression_output))
+    
+  })
+  
+  
   
   
   # Create a data table of the output ----
   output$test2 <-
     renderDataTable({
-      formatted_df$df_data
+      filtered_df$df_data
     })
   
- 
+  
+  # Data table output ----
   output$test <- 
     renderDataTable({
     
@@ -154,18 +211,15 @@ server <- function(input, output) {
     })
   
   
-  
-  
   # Render Plotly Forecast Graph ----
-  output$forecast_graph <-
-    renderPlotly({
-      plotly::plot_ly(Forecast,
-                      x = ~Date, 
-                      y = ~Forecast,
-                      mode = 'lines')
-      
-      
-    })
+ # output$forecast_graph <-
+  #  renderPlotly({
+  #    plotly::plot_ly(Forecast,
+   #                   x = ~Date, 
+   #                   y = ~Forecast,
+   #                   mode = 'lines')
+   #   
+  #  })
   
   # Download Forecast to CSV ----
   output$download_data <- 
