@@ -23,7 +23,6 @@ library('lubridate')
 format_data <- source('C:\\Users\\1217543\\OneDrive\\Python Projects\\Inventory-Forecast\\Inventory-Forecast\\format_data.R')$value
 regression_metrics <- source('C:\\Users\\1217543\\OneDrive\\Python Projects\\Inventory-Forecast\\Inventory-Forecast\\regression_metrics.R')$value
 
-
 # -----------------
 # Shiny app UI ----
 # -----------------
@@ -128,7 +127,7 @@ server <- function(input, output) {
   values <- reactiveValues(df_data = NULL)
   formatted_df <- reactiveValues(df_data = NULL)
   filtered_df <- reactiveValues(df_data = NULL)
-  regression_output <- reactiveValuesToList()
+  regression_output <- reactiveValues(df_data = NULL)
   # -------------------------------------------------------------------------
   
   # <PROGRESS BAR INPUT> 
@@ -145,6 +144,7 @@ server <- function(input, output) {
         # Save formatted DF as variable ----
         temp_df <- format_data(values$df_data)
         formatted_df$df_data <- temp_df
+        
     
       })
   
@@ -163,7 +163,7 @@ server <- function(input, output) {
   observeEvent(input$part_dropdown, {
     
     # Filter formatted DF ----
-    single_part_number <-
+    
       if(is.null(formatted_df$df_data)){
         
         filtered_df$df_data <- 'None'
@@ -180,14 +180,46 @@ server <- function(input, output) {
   # Regression Function process ----
   observeEvent(input$action2, {
     
-    regression <- regression_metrics(filtered_df$df_data)
-    regression_output$df_data <- regression 
-    
-    print(str(regression_output))
-    
-  })
-  
-  
+    observeEvent(input$part_dropdown, {
+      
+      # Filter formatted DF ----
+      
+      if(is.null(formatted_df$df_data)){
+        
+        filtered_df$df_data <- 'None'
+        
+      } else {
+        
+        filtered_df$df_data <- 
+          formatted_df$df_data %>%
+          dplyr::filter(Part_Number == input$part_dropdown)
+      }
+      
+      # Regression Part ----  
+      regression_output$df_data <- 
+        regression_metrics(filtered_df$df_data)
+      
+      model <- regression_output$df_data[['Model']]
+      model_summary <- regression_output$df_data[['Model_Summary']]
+      augmented_model <- regression_output$df_data[['Augmented_Model']]
+      calibration_table <- regression_output$df_data[['Calibration_Table']]
+      forecast_table <- regression_output$df_data[['Forecast']]
+      
+      print(forecast_table)
+      
+      #Render Plotly Forecast Graph ----
+      output$forecast_graph <-
+        renderPlotly({
+        plot_ly(data.frame(forecast_table),
+        x = ~Date, 
+        y = ~Forecast,
+        mode = 'lines')
+           
+      })
+      
+      
+      })
+})
   
   
   # Create a data table of the output ----
@@ -210,16 +242,6 @@ server <- function(input, output) {
       
     })
   
-  
-  # Render Plotly Forecast Graph ----
- # output$forecast_graph <-
-  #  renderPlotly({
-  #    plotly::plot_ly(Forecast,
-   #                   x = ~Date, 
-   #                   y = ~Forecast,
-   #                   mode = 'lines')
-   #   
-  #  })
   
   # Download Forecast to CSV ----
   output$download_data <- 

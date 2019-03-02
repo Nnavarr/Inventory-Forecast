@@ -22,6 +22,8 @@ library('DescTools')
 library('lubridate')
 
 
+names(regression_list)
+
 ```
 
 
