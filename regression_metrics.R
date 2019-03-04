@@ -70,7 +70,10 @@ function(x){
   
   augmented_model <- broom::augment(model)
   augmented_model$Date <- x$Date
-  augmented_model <- augmented_model[ ,c(21,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20)]
+  augmented_model <-
+    augmented_model %>%
+    mutate(Part_Number = x$Part_Number)
+  augmented_model <- augmented_model[ ,c(21,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,22)]
   
   # Breusch-Pagan Test: Regress X variables on squared residuals from first regression ----
   resid_model = lm(.resid^2 ~
@@ -184,13 +187,17 @@ function(x){
   
   forecast_df <- forecast_df[ , c('Part_Number', 'Date', 'Trend', 'Forecast', 'Upper_Conf', 'Lower_Conf')] 
   
+  # Combine Data Frame ----
+  combined_df <- bind_rows(augmented_model[, c('Date', 'Units', 'Part_Number')], forecast_df)
+  
   # Export Function Variables ----
   function_variables <- 
     list("Model" = model,
          "Model_Summary" = t_model_summary,
          "Augmented_Model" = augmented_model,
          "Calibration_Table" = calibration_table,
-         "Forecast" = forecast_df)
+         "Forecast" = forecast_df,
+         'Combined_DF' = combined_df)
   
   return(function_variables)
   

@@ -72,7 +72,10 @@ fluidPage(
       
       # Run model: 'action2' ----
       tags$h5('Forecast Units:'),
-      actionButton('action2', 'Run Model', class = 'btn-primary')
+      actionButton('action2', 'Run Model', class = 'btn-primary'),
+      
+      tags$h5('Model Summary (Final)'),
+      verbatimTextOutput('final_model_summary')
       
     ),
     
@@ -80,26 +83,39 @@ fluidPage(
     
     mainPanel(
       tabsetPanel(
+        
+        # Initial Tab (Final Model Summary)
         tabPanel("Model: Final",
                   
                  # Plotly Graph Output ----
                  plotlyOutput("forecast_graph"),
                  verbatimTextOutput("Unit Forecast"),
                  
-                 # Table Output ----
-                 dataTableOutput(outputId = 'test'),
-                 
-                  # Forecast Table ----
-                # h4("Forecast Table"),
-                # tableOutput("forecast_table"),
-                  
-                 # Download Forecast Table ----
-                 downloadButton("download_data", "Download"),
+                # Forecast Table ----
+                 h4("Forecast Table"),
+                 tableOutput("forecast_table"),
                 
                  # Formatted data test ----
-                 dataTableOutput(outputId = 'test2')
+                 dataTableOutput(outputId = 'forecast'),
+                
+                # Download Forecast Table ----
+                downloadButton("download_data", "Download")
                   
-        )
+        ),
+        
+        # Secondary Tab (Residual Diagnostics on Training set) ----
+        tabPanel("Model Training & Test",
+                 
+                 # Plotly graph of actual vs model ----
+                 plotlyOutput('training_graph'),
+                 
+                 # Model Output ----
+                 verbatimTextOutput('final_model_summary')
+                 
+                 # Residual Distribution ----
+                 
+                 
+                 )
         
       
       )
@@ -128,6 +144,9 @@ server <- function(input, output) {
   formatted_df <- reactiveValues(df_data = NULL)
   filtered_df <- reactiveValues(df_data = NULL)
   regression_output <- reactiveValues(df_data = NULL)
+  training_regression <- reactiveValues(df_data = NULL)
+  
+  forecast_df <- reactiveValues(df_data = NULL)
   # -------------------------------------------------------------------------
   
   # <PROGRESS BAR INPUT> 
@@ -144,9 +163,8 @@ server <- function(input, output) {
         # Save formatted DF as variable ----
         temp_df <- format_data(values$df_data)
         formatted_df$df_data <- temp_df
-        
     
-      })
+    })
   
   
   # Part Number drop down ----
@@ -174,7 +192,7 @@ server <- function(input, output) {
           formatted_df$df_data %>%
           dplyr::filter(Part_Number == input$part_dropdown)
       }
-  })
+    })
   
   
   # Regression Function process ----
@@ -204,42 +222,87 @@ server <- function(input, output) {
       augmented_model <- regression_output$df_data[['Augmented_Model']]
       calibration_table <- regression_output$df_data[['Calibration_Table']]
       forecast_table <- regression_output$df_data[['Forecast']]
+      combined_df <- regression_output$df_data[['Combined_DF']]
       
-      print(forecast_table)
+      forecast_df$df_data <- forecast_table[,c('Date', 'Part_Number', 'Trend', 'Forecast', 'Upper_Conf', 'Lower_Conf')]
       
       #Render Plotly Forecast Graph ----
+      hovertxt <- paste0('<b>Date: </b>', combined_df$Date, '<br>',
+                          '<b>Forecast: </b>', combined_df$Forecast, '<br>',
+                          '<b>Upper Bound: </b>', combined_df$Upper_Conf, '<br>',
+                          '<b>Lower Bound: </b>', combined_df$Lower_Conf)
+      
       output$forecast_graph <-
         renderPlotly({
-        plot_ly(data.frame(forecast_table),
-        x = ~Date, 
-        y = ~Forecast,
-        mode = 'lines')
-           
+        plot_ly(combined_df, x = ~Date)  %>%
+            add_lines(y = ~Units, name = 'Current') %>%
+            add_lines(y = ~Forecast, name = 'Forecast', line = list(width = 4, color = "#00587b"),
+                      hoverinfo = 'text', text = hovertxt) %>%
+            add_lines(y = ~Lower_Conf, name = 'Lower', line = list(color = "#3d83a3")) %>%
+            add_lines(y = ~Upper_Conf, name = 'Upper', line = list(color = "#3d83a3"), 
+                      fill = 'tonexty')
+          
+        })
+          
+      # Tranining Set Regression ----
+      training_df <- 
+        subset(filtered_df$df_data, Trend <= max(Trend) - as.numeric(input$training))
+          
+      training_regression$df_data <- 
+        regression_metrics(training_df)
+      
+      # Subset individual regression parts ----
+      t_model <-  training_regression$df_data[['Model']]
+      t_model_summary <- training_regression$df_data[['Model_Summary']]
+      t_augmented_model <- training_regression$df_data[['Augmented_Model']]
+      t_calibration_table <- training_regression$df_data[['Calibration_Table']]
+      t_forecast_table <- training_regression$df_data[['Forecast']]
+      t_combined_df <- training_regression$df_data[['Combined_DF']]
+        actual <- augmented_model[, c('Date', 'Units')]
+        contrast_df <- left_join(x=t_combined_df, y=actual, by = 'Date')
+        names(contrast_df)[2] <- 'Units'
+        names(contrast_df)[8] <- 'Actual_Units'
+      
+      
+      # Render Plotly model training graph ----
+      t_hovertxt <- paste0('<b>Date: </b>', t_combined_df$Date, '<br>',
+                         '<b>Forecast: </b>', t_combined_df$Forecast, '<br>',
+                         '<b>Upper Bound: </b>', t_combined_df$Upper_Conf, '<br>',
+                         '<b>Lower Bound: </b>', t_combined_df$Lower_Conf)
+      
+      
+      output$training_graph <-
+        renderPlotly({
+          plot_ly(contrast_df, x = ~Date)  %>%
+            add_lines(y = ~Actual_Units, name = 'Actual') %>%
+            add_lines(y = ~Forecast, name = 'Forecast', line = list(width = 4, color = "#00587b", dash = 'dash'),
+                      hoverinfo = 'text', text = t_hovertxt) %>%
+            add_lines(y = ~Lower_Conf, name = 'Lower', line = list(color = "#3d83a3")) %>%
+            add_lines(y = ~Upper_Conf, name = 'Upper', line = list(color = "#3d83a3"), 
+                      fill = 'tonexty')
+        })
+      
+      
+      
+      # Model Summary Outputs ----
+      # Final Model Summary ----
+      output$final_model_summary <- renderPrint({
+        summary(model)
       })
       
+      # Training Model Summary ----
+      output$training_model_summary <- renderPrint({
+        summary(t_model)
+      })
       
       })
 })
   
   
   # Create a data table of the output ----
-  output$test2 <-
+  output$forecast <-
     renderDataTable({
-      filtered_df$df_data
-    })
-  
-  
-  # Data table output ----
-  output$test <- 
-    renderDataTable({
-    
-      inFile <- input$file1
-      
-     if(is.null(inFile))
-        return(NULL)
-      
-      read.csv(inFile$datapath, header = TRUE, sep = ",")
-      
+      forecast_df$df_data
     })
   
   
@@ -248,11 +311,11 @@ server <- function(input, output) {
     downloadHandler(
       filename = function(){
         
-        paste(forecast_table$Part_Number[1],"_Forecast", ".csv", sep = "")
+        paste(input$part_dropdown,'_',Sys.yearmon(),'_forecast','.csv', sep = "")
       },
       content = function(file) {
         
-        write.csv(forecast_table, file, row.names = FALSE)
+        write.csv(forecast_df$df_data, file, row.names = FALSE)
         
       }
     )

@@ -343,7 +343,11 @@ regression_metrics <- function(x){
   
   augmented_model <- broom::augment(model)
   augmented_model$Date <- x$Date
-  augmented_model <- augmented_model[ ,c(21,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20)]
+  augmented_model <-
+    augmented_model %>%
+    mutate(Part_Number = x$Part_Number)
+  
+  augmented_model <- augmented_model[ ,c(21,1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20,22)]
 
   # Breusch-Pagan Test: Regress X variables on squared residuals from first regression ----
   resid_model = lm(.resid^2 ~
@@ -457,13 +461,18 @@ regression_metrics <- function(x){
   
   forecast_df <- forecast_df[ , c('Part_Number', 'Date', 'Trend', 'Forecast', 'Upper_Conf', 'Lower_Conf')] 
   
+  # Create single dataframe that contains forecast & original data ----
+  combined_df <- bind_rows(augmented_model[, c('Date', 'Units', 'Part_Number')], forecast_df)
+  
+  
   # Export Function Variables ----
   function_variables <- 
     list("Model" = model,
          "Model_Summary" = t_model_summary,
          "Augmented_Model" = augmented_model,
          "Calibration_Table" = calibration_table,
-         "Forecast" = forecast_df)
+         "Forecast" = forecast_df,
+         'Combined_DF' = combined_df)
   
   return(function_variables)
 
@@ -488,11 +497,19 @@ test_function_filter <-
 regression_list <- 
   regression_metrics(test_function_filter) 
 
-# Graph 
-regression_list$Augmented_Model
+# Extract Original Data ----
+regression_orig <- 
+  regression_list[['Augmented_Model']]
 
-ggplot(data = regression_list$Augmented_Model) + geom_line(aes(x=regression_list$Augmented_Model$Date, y = regression_list$Augmented_Model$Units)) + geom_line(data = regression_list$Forecast, aes(x = regression_list$Forecast$Date, y = regression_list$Forecast$Forecast))
+regression_orig <- regression_orig[, c('Date', 'Units', 'Part_Number')]
 
+regression_forecast <- 
+  regression_list[['Forecast']]
+
+regression_forecast <- regression_forecast[, c('Date', 'Part_Number', 'Forecast', 'Upper_Conf', 'Lower_Conf')]
+
+# Combine into single data frame ----
+combined_df <- bind_rows(regression_orig, regression_forecast)
 
 
 ```
