@@ -71,10 +71,9 @@ fluidPage(
       numericInput('training', 'Excluded observations (training)', 12),
       
       # Run model: 'action2' ----
-      tags$h5('Forecast Units:'),
       actionButton('action2', 'Run Model', class = 'btn-primary'),
       
-      tags$h5('Model Summary (Final)'),
+      tags$h4('Model Summary (Final)'),
       verbatimTextOutput('final_model_summary')
       
     ),
@@ -109,11 +108,17 @@ fluidPage(
                  # Plotly graph of actual vs model ----
                  plotlyOutput('training_graph'),
                  
+                 
+                 fluidRow(
+                   column(6,
                  # Model Output ----
-                 verbatimTextOutput('final_model_summary')
+                 tags$h3('Training Model Summary'),
+                 verbatimTextOutput('training_model_summary')
                  
                  # Residual Distribution ----
                  
+                 
+                  ))
                  
                  )
         
