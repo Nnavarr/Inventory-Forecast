@@ -8,10 +8,17 @@ output: html_document
 
 ```{r Library}
 
-library('dplyr')
+library(shiny)
+library(shinydashboard)
+library(shinythemes)
+library(plotly)
+library(dplyr)
+library(ggplot2)
+library(markdown)
+library(rjson)
+library(RCurl)
+
 library('forecast', lib.loc="~/R/win-library/3.4")
-library('ggvis')
-library('ggplot2')
 library('xts')
 library('broom')
 library('stats')
@@ -21,8 +28,6 @@ library('ggpubr')
 library('DescTools')
 library('lubridate')
 
-
-names(regression_list)
 
 ```
 
@@ -50,6 +55,21 @@ hitch_units <-
   hitch_units %>%
   arrange(`Part_Number`)
 
+hitch_units$Feb = ''
+
+months(hitch_units$Date) == 'February'
+
+# Manual Test ----
+for(i in seq_along(hitch_units$Date)){
+  
+   if(months(hitch_units$Date)[i] == 'February'){
+      
+      hitch_units$Feb[i] = 1
+  
+   }
+  }
+
+
 ```
 
 
@@ -71,8 +91,8 @@ format_data <- function(x){
   colnames(x)[2] <- 'Date'
   
   # Convert "Date" column to Date values ----
-  x$Date <- as.character(x$Date)
-  x$Date <- as.Date(x$Date, format = '%m/%d/%Y')
+ # x$Date <- as.character(x$Date)
+ # x$Date <- as.Date(x$Date, format = '%m/%d/%Y')
   
   # Convert Part_Number column to character (not factor) ----
   x$Part_Number <- as.character(x$Part_Number)
@@ -101,7 +121,8 @@ format_data <- function(x){
     x %>%
     group_by(Part_Number) %>%
     mutate(Trend = seq_along(Part_Number))
-  
+
+
   
   for(i in seq_along(x$Date)){
     
@@ -195,79 +216,14 @@ Within the following R-Script, we will assume a selection has already been made.
 ```{r Manual Selection of Part number 74507}
 
 p_13002_test <- 
-test_function %>%
+hitch_units %>%
   filter(`Part_Number` == '74507')
 
-unique(test_function$Part_Number)
-
 ```
-
-
-```{r Pre Model Specifications}
-
-observations <-
-  round(max(p_13002_test$Trend),0)
-
-years_data <- round(observations/12,2)
-
-pre_model_summary <- data.table(as.tbl(data.frame(observations, years_data)))
-colnames(pre_model_summary)[1] <- 'Count'
-rownames(pre_model_summary) <- c('Observations', 'Yrs Data')
-
-print(pre_model_summary)
-
-```
-
 
 At this point, the user has an understanding of how much data is available. We can then prompt the user to determine the test / training split. 
 
 ** SHINY ** : Ask the user to exclude X observations (12 months by default)
-
-
-```{r Manual exclusion of 12 obs}
-
-p_13002_test
-
-head(p_13002_test)
-
-# Test Subset ----
-training_df <- subset(p_13002_test, Trend <= max(Trend) - 12) # Here, the 12 would be the user entered excluded observations ----
-
-```
-
-After the subset, the model can be run on the newly created 'training_df' 
-
-```{r LM Creation}
-
-# Training Model Creation ----
-training_model <- lm(Units ~
-                       Trend 
-                     + Feb
-                     + Mar
-                     + Apr 
-                     + May
-                     + Jun
-                     + Jul
-                     + Aug
-                     + Sep 
-                     + Oct
-                     + Nov 
-                     + Dec,
-                     data = training_df)
-
-# Training Model Summary ----
-t_model_summary <- summary(training_model)
-
-# Establish Crititcal T and F values based on model Degrees of Freedom ----
-
-# Critial T = Two Trailed, N-K-1 Degrees of Freedom & Critical F = one tailed test ----
-n_k_1 <- training_model$df.residual
-k = 12
-
-critical_t <- round(abs(qt(.05/2, n_k_1)),3)
-critical_f <- qf(.95,  df1 = k, df2 = n_k_1)
-
-```
 
 
 ```{r Regression Function}
@@ -296,13 +252,13 @@ regression_metrics <- function(x){
              + Dec,
              data = x)
   
-  t_model_summary <- summary(training_model)
+  model_summary <- summary(model)
 
   
   # Establish Crititcal T and F values based on model Degrees of Freedom ----
   # Critial T = Two Trailed, N-K-1 Degrees of Freedom & Critical F = one tailed test ----
-  n_k_1 <- training_model$df.residual
-  k = t_model_summary$fstatistic[2]
+  n_k_1 <- model$df.residual
+  k = model_summary$fstatistic[2]
 
   critical_t <- round(abs(stats::qt(.05/2, n_k_1)),3)
   critical_f <- stats::qf(.95,  df1 = k, df2 = n_k_1)
@@ -313,14 +269,14 @@ regression_metrics <- function(x){
   # -----------------------------------------------
   
   # Independent X variable significance ----
-  coefficient_pval <- t_model_summary$coefficients[,4]
+  coefficient_pval <- model_summary$coefficients[,4]
   significance_x_var <- coefficient_pval < .05
   significance_x_var_boolean <- sum(significance_x_var) > 0
     
     # In the code above, if one X (independent) variable is significant, it will return TRUE.
   
   # F-test (all X variables combined; H0: All beta coefficients = 0 ; Ha: At least one beta coefficient != 0)
-  significant_f_boolean <- t_model_summary$fstatistic[1] > critical_f
+  significant_f_boolean <- model_summary$fstatistic[1] > critical_f
   
   # Multicolinearity conclusion ----
   multicolinearity_conflict <- significance_x_var_boolean != significant_f_boolean
@@ -369,7 +325,7 @@ regression_metrics <- function(x){
   resid_model_summary <- summary(resid_model)
   
   # Breusch-Pagan value: R-squared from residual regression * N (one tailed; only an issue if too big) ----
-  bp_val <- resid_model_summary$r.squared * max(augment_model$Trend) 
+  bp_val <- resid_model_summary$r.squared * max(augmented_model$Trend) 
 
   heteroskedasticity_results <- 
     
@@ -387,7 +343,7 @@ regression_metrics <- function(x){
   # Model Calibration Test 3: Autocorrelation ----
   # ----------------------------------------------
   
-  durbin_value <- lmtest::dwtest(reg_model)
+  durbin_value <- lmtest::dwtest(model)
   durbin_watson_pvalue <- durbin_value$p.value
   autocorrelation_results <-
   
@@ -409,14 +365,17 @@ regression_metrics <- function(x){
   # Table compilation ----
   model_calibration_results <- data.frame(data.frame(Result))
   rownames(model_calibration_results) <- Test
-  calibration_table <- DT::datatable(model_calibration_results)
+  calibration_table <- DT::datatable(model_calibration_results) %>%
+    formatStyle('Result',
+                target = 'row',
+                backgroundColor = styleEqual(c("Detected"), c('yellow')))
   
   
   # Model Forecast Table ----
   forecast_start_date <- DescTools::AddMonths(max(x$Date),1)
   forecast_end_date <- DescTools::AddMonths(forecast_start_date, 11)
   forecast_range <- seq.Date(from = forecast_start_date, to = forecast_end_date, by = 'month')
-  forecast_trend <- seq.int(from = forecast_trend + 1, to = length(forecast_range) + forecast_trend , by = 1)
+  forecast_trend <- seq.int(from = max(x$Trend) + 1, to = length(forecast_range) + forecast_trend , by = 1)
   forecast_df <- data.frame("Date" = forecast_range, "Trend" = trend_sequence)
   
   # Create Forecast ----
@@ -468,7 +427,7 @@ regression_metrics <- function(x){
   # Export Function Variables ----
   function_variables <- 
     list("Model" = model,
-         "Model_Summary" = t_model_summary,
+         "Model_Summary" = model_summary,
          "Augmented_Model" = augmented_model,
          "Calibration_Table" = calibration_table,
          "Forecast" = forecast_df,
@@ -486,7 +445,7 @@ regression_metrics <- function(x){
 
 # Function 1: Format Data ----
 test_function <- 
-  format_data(hitch_units)
+  format_data(p_13002_test)
 
 # Select 1 Part number ----
 test_function_filter <- 
@@ -496,6 +455,13 @@ test_function_filter <-
 # Function 2: Regression Model ----
 regression_list <- 
   regression_metrics(test_function_filter) 
+
+
+
+
+
+
+
 
 # Extract Original Data ----
 regression_orig <- 

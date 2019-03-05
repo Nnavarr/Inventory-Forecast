@@ -99,26 +99,45 @@ fluidPage(
                 
                 # Download Forecast Table ----
                 downloadButton("download_data", "Download")
+                
                   
         ),
         
+        # ---------------------------------------------------------
         # Secondary Tab (Residual Diagnostics on Training set) ----
+        # ---------------------------------------------------------
         tabPanel("Model Training & Test",
                  
                  # Plotly graph of actual vs model ----
                  plotlyOutput('training_graph'),
                  
+                 fluidRow(
+                   valueBoxOutput('AdjR2'),
+                   valueBoxOutput('MAE'),
+                   valueBoxOutput('RMSE')
+                 ),
+  
+                 fluidRow(
+                   column(6, 
+                          
+                          # Model Output ----
+                        #  tags$h3('Training Model Summary'),
+                        #  verbatimTextOutput('training_model_summary')),
+                   
+                #   column(6,
+                          
+                          # Calibration Table ----
+                          tags$h3('Calibration Table'),
+                          dataTableOutput(outputId = 't_calibration'))),
                  
                  fluidRow(
-                   column(6,
-                 # Model Output ----
-                 tags$h3('Training Model Summary'),
-                 verbatimTextOutput('training_model_summary')
+                   column(12,
+                          plotlyOutput('t_residual_distribution')
+                   )
+                   
+                 )
                  
-                 # Residual Distribution ----
-                 
-                 
-                  ))
+                  )
                  
                  )
         
@@ -127,7 +146,7 @@ fluidPage(
     )
   )
 )
-)
+
 
 
 # Define UI for application (Dashboard) ----
@@ -150,7 +169,6 @@ server <- function(input, output) {
   filtered_df <- reactiveValues(df_data = NULL)
   regression_output <- reactiveValues(df_data = NULL)
   training_regression <- reactiveValues(df_data = NULL)
-  
   forecast_df <- reactiveValues(df_data = NULL)
   # -------------------------------------------------------------------------
   
@@ -168,7 +186,6 @@ server <- function(input, output) {
         # Save formatted DF as variable ----
         temp_df <- format_data(values$df_data)
         formatted_df$df_data <- temp_df
-    
     })
   
   
@@ -199,6 +216,8 @@ server <- function(input, output) {
       }
     })
   
+
+  
   
   # Regression Function process ----
   observeEvent(input$action2, {
@@ -228,6 +247,7 @@ server <- function(input, output) {
       calibration_table <- regression_output$df_data[['Calibration_Table']]
       forecast_table <- regression_output$df_data[['Forecast']]
       combined_df <- regression_output$df_data[['Combined_DF']]
+      
       
       forecast_df$df_data <- forecast_table[,c('Date', 'Part_Number', 'Trend', 'Forecast', 'Upper_Conf', 'Lower_Conf')]
       
@@ -263,12 +283,35 @@ server <- function(input, output) {
       t_calibration_table <- training_regression$df_data[['Calibration_Table']]
       t_forecast_table <- training_regression$df_data[['Forecast']]
       t_combined_df <- training_regression$df_data[['Combined_DF']]
-        actual <- augmented_model[, c('Date', 'Units')]
+        actual <- augmented_model[, c('Date', 'Units')] 
         contrast_df <- left_join(x=t_combined_df, y=actual, by = 'Date')
-        names(contrast_df)[2] <- 'Units'
-        names(contrast_df)[8] <- 'Actual_Units'
-      
-      
+          names(contrast_df)[2] <- 'Units'
+          names(contrast_df)[8] <- 'Actual_Units'
+          
+        contrast_df$Units <- as.numeric(contrast_df$Actual_Units)
+
+        # Out-of-sample errors ----
+        contrast_df <-
+          contrast_df %>%
+          mutate(Residual = Actual_Units - Forecast,
+                 Absolute_Error = abs(Residual),
+                 Squared_Resid = Residual^2
+                 )
+        
+    #    adj_r_squared <- t_model_summary$adj.r.squared
+        
+     #   MAE <-
+     #     contrast_df %>%
+      #    summarize(mean(Absolute_Error, na.rm = TRUE))
+        
+        # Root Mean Squared Error ----
+   #     RMSE <- 
+     #     contrast_df %>%
+       #   summarize(sqrt(mean(Squared_Resid, na.rm = TRUE)))
+        
+        
+        
+        
       # Render Plotly model training graph ----
       t_hovertxt <- paste0('<b>Date: </b>', t_combined_df$Date, '<br>',
                          '<b>Forecast: </b>', t_combined_df$Forecast, '<br>',
@@ -288,8 +331,30 @@ server <- function(input, output) {
         })
       
       
-      
+      # --------------------------
       # Model Summary Outputs ----
+      # --------------------------
+      
+      # Value Box Adjusted R2 ----
+     # output$AdjR2 <- renderValueBox({
+    #    valueBox(
+    #      paste0(round(adj_r_squared,2)), subtitle = 'Adjusted R2', icon = icon('chart_line'))
+        
+ #     })
+      
+      # Value Box Mean Absolute Error ----
+ #     output$MAE <- renderValueBox({
+  #      valueBox(
+  #        paste0(round(MAE,0)), subtitle = 'Mean Absolute Error', icon = icon('chart_line'))
+    
+   #     })
+      
+   #   output$RMSE <- renderValueBox({
+   #     valueBox(
+   #       paste0(round(RMSE,0)), subtitle = 'Root Mean Squared Error')
+   #   })
+      
+      
       # Final Model Summary ----
       output$final_model_summary <- renderPrint({
         summary(model)
@@ -297,11 +362,27 @@ server <- function(input, output) {
       
       # Training Model Summary ----
       output$training_model_summary <- renderPrint({
-        summary(t_model)
+        t_model_summary
       })
       
+      # Training Model calibration table ----
+  #    output$t_calibration <- renderDataTable({
+  #      t_calibration_table
+  #    })
+      
+      # Training Model Residual Distribution ----
+     # output$t_residual_distribution <- 
+     #   renderPlotly({
+      #    plot_ly(
+            
+            
+            
+        #  )
+
+      
       })
-})
+    
+}) # Close Observe Event Reactive section ----
   
   
   # Create a data table of the output ----
