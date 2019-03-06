@@ -121,10 +121,10 @@ fluidPage(
                    column(6, 
                           
                           # Model Output ----
-                        #  tags$h3('Training Model Summary'),
-                        #  verbatimTextOutput('training_model_summary')),
+                          tags$h3('Training Model Summary'),
+                          verbatimTextOutput('training_model_summary')),
                    
-                #   column(6,
+                   column(6,
                           
                           # Calibration Table ----
                           tags$h3('Calibration Table'),
@@ -298,16 +298,16 @@ server <- function(input, output) {
                  Squared_Resid = Residual^2
                  )
         
-    #    adj_r_squared <- t_model_summary$adj.r.squared
+        adj_r_squared <- t_model_summary$adj.r.squared
         
-     #   MAE <-
-     #     contrast_df %>%
-      #    summarize(mean(Absolute_Error, na.rm = TRUE))
+        MAE <-
+          contrast_df %>%
+          summarize(mean(Absolute_Error, na.rm = TRUE))
         
         # Root Mean Squared Error ----
-   #     RMSE <- 
-     #     contrast_df %>%
-       #   summarize(sqrt(mean(Squared_Resid, na.rm = TRUE)))
+        RMSE <- 
+          contrast_df %>%
+          summarize(sqrt(mean(Squared_Resid, na.rm = TRUE)))
         
         
         
@@ -336,23 +336,24 @@ server <- function(input, output) {
       # --------------------------
       
       # Value Box Adjusted R2 ----
-     # output$AdjR2 <- renderValueBox({
-    #    valueBox(
-    #      paste0(round(adj_r_squared,2)), subtitle = 'Adjusted R2', icon = icon('chart_line'))
+      output$AdjR2 <- renderValueBox({
+        valueBox(
+          paste0(round(adj_r_squared,4) * 100), subtitle = 'Adjusted R2', icon = icon('percent'))
         
- #     })
+      })
       
       # Value Box Mean Absolute Error ----
- #     output$MAE <- renderValueBox({
-  #      valueBox(
-  #        paste0(round(MAE,0)), subtitle = 'Mean Absolute Error', icon = icon('chart_line'))
+      output$MAE <- renderValueBox({
+        valueBox(
+          paste0(round(MAE,0)), subtitle = 'Mean Absolute Error', icon = icon('chart_line'))
     
-   #     })
+        })
       
-   #   output$RMSE <- renderValueBox({
-   #     valueBox(
-   #       paste0(round(RMSE,0)), subtitle = 'Root Mean Squared Error')
-   #   })
+      # Value Box Root Mean Squared Error ----
+      output$RMSE <- renderValueBox({
+        valueBox(
+          paste0(round(RMSE,0)), subtitle = 'Root Mean Squared Error')
+      })
       
       
       # Final Model Summary ----
@@ -366,13 +367,13 @@ server <- function(input, output) {
       })
       
       # Training Model calibration table ----
-  #    output$t_calibration <- renderDataTable({
-  #      t_calibration_table
-  #    })
+      output$t_calibration <- renderDataTable({
+        t_calibration_table
+      })
       
       # Training Model Residual Distribution ----
-     # output$t_residual_distribution <- 
-     #   renderPlotly({
+  #    output$t_residual_distribution <- 
+      #  renderPlotly({
       #    plot_ly(
             
             
