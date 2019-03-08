@@ -38,14 +38,19 @@ sidebar <- dashboardSidebar(
     
     # Create Menu ----
     menuItem(text = 'Forecast Summary',
-             tabName = 'summary')
+             tabName = 'summary'),
+    
+    menuItem(text = 'Disclosure',
+             tabName = 'disclosure')
   )
 )
 
 
 # App Body: Controls & Output ----
 body <- dashboardBody(
-  
+
+tabItems(
+tabItem(tabName = 'summary',
 fluidPage(
   sidebarLayout(
     sidebarPanel(
@@ -79,6 +84,9 @@ fluidPage(
     ),
     
     
+    # ---------------------
+    # Full Model Summary --
+    # ---------------------
     
     mainPanel(
       tabsetPanel(
@@ -99,7 +107,6 @@ fluidPage(
                 
                 # Download Forecast Table ----
                 downloadButton("download_data", "Download")
-                
                   
         ),
         
@@ -132,21 +139,42 @@ fluidPage(
                  
                  fluidRow(
                    column(12,
+                          tags$h3('Residual Distribution'),
                           plotlyOutput('t_residual_distribution')
                    )
+                 ),
+                 
+                 fluidRow(
+                   column(12, 
+                          tags$h3('Residual vs Fitted'),
+                          plotlyOutput('t_residual_vs_fitted')
+                   
+                   
+                   
+                 )
+                   
+                   
                    
                  )
                  
                   )
                  
                  )
-        
-      
       )
+    )
+  )
+), # First Tab Item Closure ----
+
+
+tabItem(tabName = 'disclosure',
+        h3('Disclosure:'),
+        h4('This tool was built for Luis Terrazas and team with the intent of forecasting inventory levels based on units sold. It uses a time series trend model with monthly categorical variables (seasonality) to forecast unit counts. This Ordinary Least Squares Regression technique represents one of many forecasting methodologies. It is important to remember the forecast is based on historical trends. That is, if underlying data characteristics change, the forecast may perform poorly. In order to mitigate this risk, it may be appropriate to recalibrate the model periodically. The use of the tool and associated forecasts are ultimately left to analyst discretion.')
+
     )
   )
 )
 
+# Second Tab Item (Disclosures) ----
 
 
 # Define UI for application (Dashboard) ----
@@ -203,7 +231,6 @@ server <- function(input, output) {
   observeEvent(input$part_dropdown, {
     
     # Filter formatted DF ----
-    
       if(is.null(formatted_df$df_data)){
         
         filtered_df$df_data <- 'None'
@@ -217,8 +244,6 @@ server <- function(input, output) {
     })
   
 
-  
-  
   # Regression Function process ----
   observeEvent(input$action2, {
     
@@ -297,7 +322,7 @@ server <- function(input, output) {
                  Absolute_Error = abs(Residual),
                  Squared_Resid = Residual^2
                  )
-        
+    
         adj_r_squared <- t_model_summary$adj.r.squared
         
         MAE <-
@@ -331,6 +356,8 @@ server <- function(input, output) {
         })
       
       
+      
+      
       # --------------------------
       # Model Summary Outputs ----
       # --------------------------
@@ -338,21 +365,21 @@ server <- function(input, output) {
       # Value Box Adjusted R2 ----
       output$AdjR2 <- renderValueBox({
         valueBox(
-          paste0(round(adj_r_squared,4) * 100), subtitle = 'Adjusted R2', icon = icon('percent'))
+          paste0(round(adj_r_squared,4) * 100), subtitle = 'Adjusted R2 (Training)', icon = icon('percent'))
         
       })
       
       # Value Box Mean Absolute Error ----
       output$MAE <- renderValueBox({
         valueBox(
-          paste0(round(MAE,0)), subtitle = 'Mean Absolute Error', icon = icon('chart_line'))
+          paste0(round(MAE,0)), subtitle = 'Mean Absolute Error (Out-of-Sample)', icon = icon('times-circle'))
     
         })
       
       # Value Box Root Mean Squared Error ----
       output$RMSE <- renderValueBox({
         valueBox(
-          paste0(round(RMSE,0)), subtitle = 'Root Mean Squared Error')
+          paste0(round(RMSE,0)), subtitle = 'Root Mean Squared Error (Out-of-Sample)', icon = icon('times-circle'))
       })
       
       
@@ -372,15 +399,31 @@ server <- function(input, output) {
       })
       
       # Training Model Residual Distribution ----
-  #    output$t_residual_distribution <- 
-      #  renderPlotly({
-      #    plot_ly(
-            
-            
-            
-        #  )
-
+      output$t_residual_distribution <- 
+        renderPlotly({
+          
+          resid_dist <- plot_ly(data = t_augmented_model,
+                          x = t_augmented_model$.resid,
+                          type = 'histogram')
+          
+          layout(resid_dist, xaxis = list(title = 'Residual'), yaxis = list(title = 'Units'))
+          
+          })
       
+      # Residual vs Fitted ----
+      output$t_residual_vs_fitted <-
+        renderPlotly({
+          resid_vs_fitted <- plot_ly(data = t_augmented_model,
+                                     x = t_augmented_model$.resid,
+                                     y = t_augmented_model$.fitted,
+                                     type = 'scatter')
+          
+          layout(resid_vs_fitted, xaxis = list(title = 'Fitted Values (Predicted)'), yaxis = list(title = 'Residual'))
+          
+        })
+      
+      
+
       })
     
 }) # Close Observe Event Reactive section ----
