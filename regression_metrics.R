@@ -147,7 +147,7 @@ function(x){
   forecast_end_date <- DescTools::AddMonths(forecast_start_date, 11)
   forecast_range <- seq.Date(from = forecast_start_date, to = forecast_end_date, by = 'month')
   forecast_trend <- seq.int(from = max(x$Trend) + 1, to = length(forecast_range) + max(x$Trend) , by = 1)
-  forecast_df <- data.frame("Date" = forecast_range, "Trend" = trend_sequence)
+  forecast_df <- data.frame("Date" = forecast_range, "Trend" = forecast_trend)
   
   # Create Forecast ----
   model_coefficients <- stats::coef(model)
