@@ -375,7 +375,7 @@ regression_metrics <- function(x){
   forecast_start_date <- DescTools::AddMonths(max(x$Date),1)
   forecast_end_date <- DescTools::AddMonths(forecast_start_date, 11)
   forecast_range <- seq.Date(from = forecast_start_date, to = forecast_end_date, by = 'month')
-  forecast_trend <- seq.int(from = max(x$Trend) + 1, to = length(forecast_range) + forecast_trend , by = 1)
+  forecast_trend <- seq.int(from = max(x$Trend) + 1, to = length(forecast_range) + max(x$Trend) , by = 1)
   forecast_df <- data.frame("Date" = forecast_range, "Trend" = trend_sequence)
   
   # Create Forecast ----
@@ -457,27 +457,6 @@ regression_list <-
   regression_metrics(test_function_filter) 
 
 
-
-
-
-
-
-
-# Extract Original Data ----
-regression_orig <- 
-  regression_list[['Augmented_Model']]
-
-regression_orig <- regression_orig[, c('Date', 'Units', 'Part_Number')]
-
-regression_forecast <- 
-  regression_list[['Forecast']]
-
-regression_forecast <- regression_forecast[, c('Date', 'Part_Number', 'Forecast', 'Upper_Conf', 'Lower_Conf')]
-
-# Combine into single data frame ----
-combined_df <- bind_rows(regression_orig, regression_forecast)
-
-
 ```
 
 
@@ -491,7 +470,7 @@ forecast_start_date <- DescTools::AddMonths(max(test_function$Date),1)
 forecast_end_date <- DescTools::AddMonths(forecast_start_date, 11)
 forecast_range <- seq.Date(from = forecast_start_date, to = forecast_end_date, by = 'month')
 forecast_trend <- max(test_function$Trend)
-trend_sequence <- seq.int(from = forecast_trend + 1, to = length(forecast_range) + forecast_trend , by = 1)
+trend_sequence <- seq.int(from = forecast_trend + 1, to = length(forecast_range) + max(test_function$Trend) , by = 1)
 
 # Create dataframe of forecasted dates ----
 forecast_df <- data.frame("Date" = forecast_range, "Trend" = trend_sequence)

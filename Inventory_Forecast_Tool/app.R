@@ -149,11 +149,7 @@ fluidPage(
                           tags$h3('Residual vs Fitted'),
                           plotlyOutput('t_residual_vs_fitted')
                    
-                   
-                   
                  )
-                   
-                   
                    
                  )
                  
@@ -200,8 +196,6 @@ server <- function(input, output) {
   forecast_df <- reactiveValues(df_data = NULL)
   # -------------------------------------------------------------------------
   
-  # <PROGRESS BAR INPUT> 
-  
   # Observe Data upload & Store variable ----
   observeEvent(input$file1, {
     values$df_data <- read.csv(input$file1$datapath, header = TRUE, sep = ",")
@@ -209,11 +203,14 @@ server <- function(input, output) {
   
   
   # Observe Click of "Format" button ----
+  
+  
     observeEvent(input$action1, { # Once the button is clicked, do the following 
         
         # Save formatted DF as variable ----
         temp_df <- format_data(values$df_data)
         formatted_df$df_data <- temp_df
+    
     })
   
   
