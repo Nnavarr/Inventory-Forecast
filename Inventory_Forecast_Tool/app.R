@@ -1,10 +1,10 @@
 
-library(shiny)
-library(shinydashboard)
-library(shinythemes)
-library(plotly)
-library(dplyr)
-library(ggplot2)
+library('shiny')
+library('shinydashboard')
+library('shinythemes')
+library('plotly')
+library('dplyr')
+library('ggplot2')
 library('broom')
 library('stats')
 library('lmtest')
@@ -497,8 +497,8 @@ fluidPage(
 
 tabItem(tabName = 'disclosure',
         h3('Disclosure:'),
-        h4('This tool was built for Luis Terrazas and team with the intent of forecasting inventory levels based on units sold. It uses a time series trend model with monthly categorical variables (seasonality) to forecast unit counts. This Ordinary Least Squares Regression technique represents one of many forecasting methodologies. It is important to remember the forecast is based on historical trends. That is, if underlying data characteristics change, the forecast may perform poorly. In order to mitigate this risk, it may be appropriate to recalibrate the model periodically. The use of the tool and associated forecasts are ultimately left to analyst discretion.')
-
+        h4('This tool was created for Luis Terrazas and team with the intent of forecasting inventory levels based on units sold. It uses a time series trend model with monthly categorical variables (seasonality) to forecast unit counts. This Ordinary Least Squares (OLS) Regression technique represents one of many forecasting methodologies. It is important to remember the forecast is based on historical trends. That is, if underlying data characteristics change, the forecast may perform poorly. In order to mitigate this risk, it may be appropriate to recalibrate the model periodically.'),
+        h4('Lastly, each time series is unique. If calibration tables signal the model is miscalibrated, a closer inspection and even alternative forecasting techniques may need to be used. The use of the tool and associated forecasts are ultimately left to analyst discretion.')
     )
   )
 )
